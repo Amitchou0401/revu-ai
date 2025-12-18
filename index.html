@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revu - Intelligent Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+
+        #chat-messages::-webkit-scrollbar { width: 6px; }
+        #chat-messages::-webkit-scrollbar-track { background: #0f172a; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+        .wow-card {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 1px solid #334155;
+            transition: all 0.3s ease;
+        }
+        .wow-card:hover {
+            transform: translateY(-5px);
+            border-color: #6366f1;
+            box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.3);
+        }
+
+        .pdf-watermark { display: none; }
+
+        .pdf-export-mode {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            font-family: 'Inter', sans-serif !important;
+            padding: 30px !important;
+            width: 700px !important;
+            margin: 0 auto !important;
+            box-sizing: border-box !important;
+        }
+
+        .pdf-export-mode h1, .pdf-export-mode h2, .pdf-export-mode h3, 
+        .pdf-export-mode h4, .pdf-export-mode p, .pdf-export-mode span, 
+        .pdf-export-mode div {
+            color: #0f172a !important;
+            text-shadow: none !important;
+            overflow-wrap: break-word !important;
+        }
+
+        .pdf-export-mode .bg-slate-900, 
+        .pdf-export-mode .bg-slate-800, 
+        .pdf-export-mode .bg-slate-950,
+        .pdf-export-mode .wow-card {
+            background-color: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
+            border-radius: 8px !important;
+        }
+
+        .pdf-export-mode .grid, 
+        .pdf-export-mode .flex {
+            display: block !important;
+            width: 100% !important;
+        }
+        
+        .pdf-export-mode .flex-row-force {
+            display: flex !important;
+            flex-direction: row !important;
+        }
+
+        .pdf-export-mode .comparison-row {
+            margin-bottom: 15px !important;
+            page-break-inside: avoid !important;
+        }
+
+        .pdf-export-mode .pdf-watermark {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+
+        body { font-family: 'Inter', sans-serif; }
+        
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        
+        .gradient-text {
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            background-image: linear-gradient(to right, #818cf8, #c084fc);
+        }
+
+        .pdf-container {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            padding: 40px !important;
+            border-radius: 0 !important;
+            width: 100% !important;
+        }
+        
+        .pdf-mode {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
+        .pdf-mode * {
+            color: #000000 !important;
+            border-color: #e5e7eb !important;
+        }
+        .pdf-mode .bg-slate-800, .pdf-mode .bg-slate-900 {
+            background-color: #ffffff !important;
+            border: 1px solid #e5e7eb !important;
+        }
+        .pdf-mode .text-slate-300, .pdf-mode .text-slate-400, .pdf-mode .text-slate-500 {
+            color: #374151 !important;
+        }
+        .pdf-mode .text-white {
+            color: #000000 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-50 overflow-x-hidden">
+
+    <div id="notification-container" class="fixed top-24 right-4 z-[60] transition-all duration-300 transform translate-x-full opacity-0">
+        <div class="bg-emerald-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
+            <i data-lucide="check-circle" class="w-6 h-6"></i>
+            <div>
+                <h4 class="font-bold" id="notif-title">Success</h4>
+                <p class="text-sm text-emerald-100" id="notif-msg">Operation completed.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="plan-modal" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm hidden p-4">
+        <div class="bg-slate-800 rounded-2xl border border-slate-700 p-8 max-w-md w-full shadow-2xl relative">
+            <h3 class="text-2xl font-bold text-white mb-4">Confirm Plan Change</h3>
+            <p class="text-slate-300 mb-6">
+                Switch to <span id="modal-plan-name" class="text-indigo-400 font-bold">Pro</span>? 
+                <br><span class="text-sm text-slate-400 block mt-2">This will update your features immediately.</span>
+            </p>
+            <div class="flex gap-4">
+                <button onclick="closeModal()" class="flex-1 py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700">Cancel</button>
+                <button onclick="confirmPlan()" class="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- --- NAVBAR --- -->
+    <nav class="fixed top-0 w-full z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 shadow-lg transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-20 items-center">
+                <!-- Logo -->
+                <div class="flex items-center space-x-2 cursor-pointer" onclick="navigate('home')">
+                    <span class="text-2xl font-bold gradient-text">Revu</span>
+                </div>
+
+                <div class="hidden md:flex space-x-8 items-center">
+                    <button onclick="navigate('features')" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Features</button>
+                    <button onclick="navigate('demo')" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Live Demo</button>
+                    <button onclick="navigate('history')" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">History</button>
+                    <button id="nav-pricing-desktop" onclick="navigate('pricing')" class="text-sm font-medium text-slate-300 hover:text-white transition-colors">Pricing</button>
+                </div>
+
+                <div class="hidden md:flex items-center gap-4">
+                    <div id="active-plan-badge" class="hidden px-3 py-1 bg-slate-800 rounded-full border border-indigo-500/30 text-xs font-semibold text-indigo-300 flex items-center gap-2">
+                        <div class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div> <span id="plan-name-display">Free</span>
+                    </div>
+                    <button onclick="navigate('demo')" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-medium shadow-lg hover:-translate-y-0.5 transition-all">Start Analyzing</button>
+                </div>
+
+                <div class="md:hidden">
+                    <button onclick="toggleMobileMenu()" class="text-slate-300 hover:text-white">
+                        <i data-lucide="menu" class="w-8 h-8"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="mobile-menu" class="hidden md:hidden bg-slate-800 border-b border-slate-700">
+            <div class="px-4 pt-2 pb-6 space-y-2">
+                <button onclick="navigate('home')" class="block w-full text-left px-3 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg">Home</button>
+                <button onclick="navigate('features')" class="block w-full text-left px-3 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg">Features</button>
+                <button onclick="navigate('demo')" class="block w-full text-left px-3 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg">Live Demo</button>
+                <button onclick="navigate('history')" class="block w-full text-left px-3 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg">History</button>
+                <button id="nav-pricing-mobile" onclick="navigate('pricing')" class="block w-full text-left px-3 py-3 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg">Pricing</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="pt-20 min-h-screen">
+
+        <section id="home-section" class="section-view">
+            <div class="relative pt-20 pb-32 overflow-hidden min-h-[80vh] flex items-center">
+                <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[100px] -z-10 animate-pulse"></div>
+                <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[100px] -z-10"></div>
+
+                <div class="max-w-7xl mx-auto px-4 z-10 grid md:grid-cols-2 gap-12 items-center">
+                    
+                    <div class="text-left">
+                        <div class="inline-flex items-center px-3 py-1 rounded-full bg-indigo-900/30 border border-indigo-500/30 text-indigo-300 text-sm font-medium mb-6">
+                            <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> AI-Powered Analytics
+                        </div>
+                        <h1 class="text-5xl md:text-6xl font-extrabold text-white tracking-tight mb-6 leading-tight">
+                            Understand Your Users <br />
+                            <span class="gradient-text">Instantly.</span>
+                        </h1>
+                        <p class="text-lg text-slate-400 mb-8 leading-relaxed max-w-lg">
+                            Stop manual tagging. Revu turns thousands of customer reviews into actionable insights, sentiment trends, and competitive advantages in seconds.
+                        </p>
+                        
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <button onclick="navigate('demo')" class="px-8 py-4 bg-white text-slate-900 rounded-full font-bold text-lg hover:bg-indigo-50 flex items-center justify-center gap-2 shadow-lg shadow-white/10 hover:scale-105 transition-transform">
+                                <i data-lucide="zap" class="w-5 h-5 fill-slate-900"></i> Try Live Demo
+                            </button>
+                            <button onclick="navigate('features')" class="px-8 py-4 bg-slate-800 text-white border border-slate-700 rounded-full font-bold text-lg hover:bg-slate-700 flex items-center justify-center gap-2 hover:scale-105 transition-transform">
+                                <i data-lucide="arrow-right" class="w-5 h-5"></i> Explore Features
+                            </button>
+                        </div>
+                        
+                        <div class="mt-12 p-6 bg-slate-800/50 rounded-2xl border border-slate-700/50 relative overflow-hidden">
+                            <i data-lucide="quote" class="w-8 h-8 text-indigo-500/20 absolute top-4 right-4"></i>
+                            <div id="testimonial-container" class="transition-opacity duration-500">
+                                <p class="text-slate-300 italic mb-2" id="t-text">"This tool completely changed how we analyze feedback. It's fast and accurate."</p>
+                                <p class="text-indigo-400 font-bold text-sm" id="t-author">— Sarah J., Product Manager</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex justify-center animate-float">
+                        <div class="relative w-80 h-80 md:w-96 md:h-96">
+                            <div class="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-full opacity-20 blur-3xl"></div>
+                            <div class="absolute inset-4 bg-slate-800 rounded-3xl border border-slate-700 shadow-2xl flex items-center justify-center z-10 rotate-3 hover:rotate-0 transition-transform duration-500">
+                                <div class="text-center p-6">
+                                    <div class="w-16 h-16 bg-indigo-500 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-indigo-500/50">
+                                        <i data-lucide="bar-chart-2" class="w-8 h-8 text-white"></i>
+                                    </div>
+                                    <div class="space-y-3">
+                                        <div class="h-2 w-32 bg-slate-700 rounded-full mx-auto"></div>
+                                        <div class="h-2 w-24 bg-slate-700 rounded-full mx-auto"></div>
+                                        <div class="flex justify-center gap-2 mt-4">
+                                            <div class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center"><i data-lucide="check" class="w-4 h-4 text-emerald-500"></i></div>
+                                            <div class="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4 text-rose-500"></i></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <section id="how-it-works" class="py-20 bg-slate-900">
+                <div class="max-w-7xl mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">How Revu Works</h2>
+                        <p class="text-slate-400">From raw data to insights in three simple steps.</p>
+                    </div>
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 relative group hover:border-indigo-500 transition-colors">
+                            <div class="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center mb-6 border border-indigo-500/30 text-indigo-400 font-bold text-xl">01</div>
+                            <h3 class="text-xl font-bold text-white mb-3">Upload Data</h3>
+                            <p class="text-slate-400 leading-relaxed">Paste a review or upload a CSV file with thousands of customer feedbacks.</p>
+                        </div>
+                        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 relative group hover:border-indigo-500 transition-colors">
+                            <div class="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center mb-6 border border-indigo-500/30 text-indigo-400 font-bold text-xl">02</div>
+                            <h3 class="text-xl font-bold text-white mb-3">AI Analysis</h3>
+                            <p class="text-slate-400 leading-relaxed">Our advanced Revu model processes text for sentiment, topics, and tone.</p>
+                        </div>
+                        <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 relative group hover:border-indigo-500 transition-colors">
+                            <div class="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center mb-6 border border-indigo-500/30 text-indigo-400 font-bold text-xl">03</div>
+                            <h3 class="text-xl font-bold text-white mb-3">Get Insights</h3>
+                            <p class="text-slate-400 leading-relaxed">Download comprehensive PDF reports and share actionable data with your team.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="py-24 bg-slate-900">
+                <div class="max-w-7xl mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Built for Growth Teams</h2>
+                        <p class="text-slate-400">Who gets the most value from Revu?</p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="p-8 rounded-2xl bg-slate-800 border border-slate-700 hover:border-indigo-500 transition-colors group">
+                            <div class="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                <i data-lucide="briefcase" class="w-6 h-6 text-indigo-400"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-3">Product Managers</h3>
+                            <p class="text-slate-400">Identify bugs, feature requests, and market gaps instantly to prioritize your roadmap.</p>
+                        </div>
+                        <div class="p-8 rounded-2xl bg-slate-800 border border-slate-700 hover:border-purple-500 transition-colors group">
+                            <div class="w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                <i data-lucide="megaphone" class="w-6 h-6 text-purple-400"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-3">Marketers</h3>
+                            <p class="text-slate-400">Find the exact words customers use to love your product and use them in your ad copy.</p>
+                        </div>
+                        <div class="p-8 rounded-2xl bg-slate-800 border border-slate-700 hover:border-emerald-500 transition-colors group">
+                            <div class="w-12 h-12 bg-emerald-900/50 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                <i data-lucide="heart-handshake" class="w-6 h-6 text-emerald-400"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-3">Customer Support</h3>
+                            <p class="text-slate-400">Spot recurring complaints and creating automated FAQs to reduce ticket volume.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. USE CASES (Target Audience) - CORRECTED -->
+            <section class="py-24 bg-slate-900">
+                <div class="max-w-7xl mx-auto px-4">
+                    
+                    <!-- Title Section -->
+                    <div class="text-center mb-16">
+                        <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Built for Growth Teams</h2>
+                        <p class="text-slate-400">Who gets the most value from Revu?</p>
+                    </div>
+                    
+                    <!-- Grid Container (Ye Missing Tha) -->
+                    <div class="grid md:grid-cols-3 gap-8">
+                        
+                        <!-- Card 1: Product Managers -->
+                        <div class="p-8 rounded-2xl bg-slate-800 border border-slate-700 hover:border-indigo-500 transition-colors group">
+                            <div class="w-12 h-12 bg-indigo-900/50 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                <i data-lucide="briefcase" class="w-6 h-6 text-indigo-400"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-3">Product Managers</h3>
+                            <p class="text-slate-400">Identify bugs, feature requests, and market gaps instantly to prioritize your roadmap.</p>
+                        </div>
+
+                        <!-- Card 2: Marketers -->
+                        <div class="p-8 rounded-2xl bg-slate-800 border border-slate-700 hover:border-purple-500 transition-colors group">
+                            <div class="w-12 h-12 bg-purple-900/50 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                <i data-lucide="megaphone" class="w-6 h-6 text-purple-400"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-3">Marketers</h3>
+                            <p class="text-slate-400">Find the exact words customers use to love your product and use them in your ad copy.</p>
+                        </div>
+
+                        <!-- Card 3: Customer Support -->
+                        <div class="p-8 rounded-2xl bg-slate-800 border border-slate-700 hover:border-emerald-500 transition-colors group">
+                            <div class="w-12 h-12 bg-emerald-900/50 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                <i data-lucide="heart-handshake" class="w-6 h-6 text-emerald-400"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white mb-3">Customer Support</h3>
+                            <p class="text-slate-400">Spot recurring complaints and creating automated FAQs to reduce ticket volume.</p>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <section class="py-24 bg-slate-950 border-t border-slate-800">
+                <div class="max-w-3xl mx-auto px-4">
+                    <div class="text-center mb-16">
+                        <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Frequently Asked Questions</h2>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <details class="group bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                            <summary class="flex justify-between items-center p-6 cursor-pointer font-medium text-white hover:bg-slate-800 transition-colors">
+                                <span>How accurate is the AI analysis?</span>
+                                <span class="transition-transform group-open:rotate-180"><i data-lucide="chevron-down" class="w-5 h-5"></i></span>
+                            </summary>
+                            <div class="px-6 pb-6 text-slate-400">
+                                Our AI understands context, sarcasm, and nuance, providing highly accurate results comparable to human analysis.
+                            </div>
+                        </details>
+
+                        <details class="group bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                            <summary class="flex justify-between items-center p-6 cursor-pointer font-medium text-white hover:bg-slate-800 transition-colors">
+                                <span>Can I export the reports?</span>
+                                <span class="transition-transform group-open:rotate-180"><i data-lucide="chevron-down" class="w-5 h-5"></i></span>
+                            </summary>
+                            <div class="px-6 pb-6 text-slate-400">
+                                Yes! In the Pro plan, you can export comprehensive PDF reports and JSON data for your team presentations.
+                            </div>
+                        </details>
+
+                        <details class="group bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                            <summary class="flex justify-between items-center p-6 cursor-pointer font-medium text-white hover:bg-slate-800 transition-colors">
+                                <span>Is my data secure?</span>
+                                <span class="transition-transform group-open:rotate-180"><i data-lucide="chevron-down" class="w-5 h-5"></i></span>
+                            </summary>
+                            <div class="px-6 pb-6 text-slate-400">
+                                Absolutely. We do not store your raw customer data. The analysis is processed in real-time and wiped after your session ends (unless you save it to History).
+                            </div>
+                        </details>
+                        
+                        <details class="group bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                            <summary class="flex justify-between items-center p-6 cursor-pointer font-medium text-white hover:bg-slate-800 transition-colors">
+                                <span>What sources can I analyze?</span>
+                                <span class="transition-transform group-open:rotate-180"><i data-lucide="chevron-down" class="w-5 h-5"></i></span>
+                            </summary>
+                            <div class="px-6 pb-6 text-slate-400">
+                                You can analyze data from anywhere (Amazon, Play Store, TrustPilot, etc.) by copying the text or uploading a CSV file.
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </section>
+
+            <section id="cta-section" class="py-20 relative overflow-hidden">
+                <div class="absolute inset-0 bg-indigo-900/20"></div>
+                <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
+                    <h2 class="text-4xl font-bold text-white mb-6">Ready to transform your feedback?</h2>
+                    <p class="text-lg text-slate-300 mb-8">Join 5,000+ product managers making better decisions today.</p>
+                    <button onclick="navigate('demo')" class="px-10 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full text-white font-bold text-lg shadow-2xl hover:scale-105 transition-transform">
+                        Start Analyzing Now
+                    </button>
+                </div>
+            </section>
+        </section>
+
+        <section id="features-section" class="section-view hidden py-20">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-5xl font-bold text-white mb-6">Everything you need to scale</h2>
+                    <p class="text-slate-400 text-lg max-w-2xl mx-auto">Comprehensive tools for Product Managers, Marketers, and Support teams.</p>
+                </div>
+                <div class="grid md:grid-cols-3 gap-8 mb-16">
+                    <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-700 hover:border-indigo-500/50 transition-all hover:shadow-2xl group">
+                        <div class="w-12 h-12 rounded-lg bg-slate-900 flex items-center justify-center mb-6"><i data-lucide="bar-chart-2" class="w-6 h-6 text-emerald-400"></i></div>
+                        <h3 class="text-xl font-bold text-white mb-3">Sentiment Analysis</h3>
+                        <p class="text-slate-400">Instantly categorize reviews as positive, negative, or neutral with 99% accuracy.</p>
+                    </div>
+                    <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-700 hover:border-indigo-500/50 transition-all hover:shadow-2xl group">
+                        <div class="w-12 h-12 rounded-lg bg-slate-900 flex items-center justify-center mb-6"><i data-lucide="cpu" class="w-6 h-6 text-indigo-400"></i></div>
+                        <h3 class="text-xl font-bold text-white mb-3">Keyword Extraction</h3>
+                        <p class="text-slate-400">Identify recurring topics like 'Battery Life' or 'Shipping' automatically.</p>
+                    </div>
+                    <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-700 hover:border-indigo-500/50 transition-all hover:shadow-2xl group">
+                        <div class="w-12 h-12 rounded-lg bg-slate-900 flex items-center justify-center mb-6"><i data-lucide="split" class="w-6 h-6 text-purple-400"></i></div>
+                        <h3 class="text-xl font-bold text-white mb-3">Competitor Comparison</h3>
+                        <p class="text-slate-400">Compare your product against competitors to find market gaps.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="demo-section" class="section-view hidden py-12 min-h-screen">
+            <div class="max-w-6xl mx-auto px-4">
+                
+                <div class="no-print mb-8">
+                    <div class="flex justify-center mb-8">
+                        <div class="inline-flex items-center bg-slate-800 rounded-full px-6 py-2 border border-slate-700 shadow-lg gap-4">
+                            <span class="text-slate-400">Plan: <span id="app-plan-name" class="text-white font-semibold">Free</span></span>
+                            <div id="limit-indicator" class="flex items-center gap-2">
+                                <div class="h-4 w-px bg-slate-700"></div>
+                                <span id="credits-text" class="text-emerald-400 font-semibold">Unlimited Single Reviews</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap justify-center gap-2">
+                        <button onclick="setMode('single')" id="btn-mode-single" class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-indigo-600 text-white shadow-lg"><i data-lucide="message-square" class="w-4 h-4"></i> Single Review</button>
+                        <button onclick="setMode('bulk')" id="btn-mode-bulk" class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-slate-800 text-slate-400 hover:bg-slate-700"><i data-lucide="upload" class="w-4 h-4"></i> Bulk CSV</button>
+                        <button onclick="setMode('compare')" id="btn-mode-compare" class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-slate-800 text-slate-400 hover:bg-slate-700"><i data-lucide="split" class="w-4 h-4"></i> Competitor Compare</button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl shadow-2xl border border-slate-700 overflow-hidden min-h-[600px] transition-all duration-500 result-card relative">
+                    
+                    <div id="locked-view" class="hidden h-full flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+                        <div class="w-20 h-20 bg-indigo-900/30 rounded-full flex items-center justify-center mb-6 border border-indigo-500/50">
+                            <i data-lucide="lock" class="w-10 h-10 text-indigo-400"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold text-white mb-2">Feature Locked</h2>
+                        <p class="text-slate-400 max-w-md mb-8">
+                            This feature is exclusive to the <strong>Pro</strong> plan. 
+                            Upgrade now to unlock the full power of Revu.
+                        </p>
+                        <button onclick="openPlanModal('Pro')" class="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform">
+                            Upgrade to Pro
+                        </button>
+                    </div>
+
+                    <div id="single-view" class="view-pane h-full flex flex-col md:flex-row">
+                        <div class="md:w-1/2 p-8 border-r border-slate-800 no-print">
+                            <textarea id="single-input" class="w-full h-64 bg-slate-800/50 text-white p-4 rounded-xl border border-slate-700 mb-4 focus:border-indigo-500 outline-none" placeholder="Paste a review here..."></textarea>
+                            <button onclick="analyzeSingle()" id="btn-analyze-single" class="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg flex justify-center items-center gap-2">
+                                <i data-lucide="zap" class="w-4 h-4"></i> Analyze Sentiment
+                            </button>
+                        </div>
+                        <div class="md:w-1/2 p-8 w-full">
+                            <div id="single-empty" class="h-full flex flex-col items-center justify-center text-slate-500">
+                                <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-4 border border-slate-700">
+                                    <i data-lucide="cpu" class="w-10 h-10 text-slate-600"></i>
+                                </div>
+                                <p class="text-lg font-medium">Ready to Analyze</p>
+                            </div>
+                            <div id="single-result" class="hidden space-y-6 animate-fade-in">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="bulk-view" class="view-pane hidden p-8 h-full">
+                        <div id="bulk-upload-ui" class="text-center max-w-xl mx-auto mt-10">
+                            <label for="csv-file-input" class="block border-2 border-dashed border-slate-700 rounded-2xl p-10 hover:border-indigo-500 transition-all bg-slate-800/30 cursor-pointer group hover:bg-slate-800/50 transform hover:scale-[1.02]">
+                                <i data-lucide="upload" class="w-12 h-12 text-slate-400 mx-auto mb-4 group-hover:text-indigo-400 transition-colors"></i>
+                                <h3 class="text-xl font-bold text-white mb-2">Upload CSV File</h3>
+                                <p class="text-slate-400 mb-6 text-sm">Click here to upload your file.</p>
+                                <input type="file" id="csv-file-input" accept=".csv, text/csv, application/vnd.ms-excel, text/plain" class="hidden" onchange="handleFileUpload(this)">
+                                <p id="file-name-display" class="text-emerald-400 font-medium hidden mt-2"></p>
+                            </label>
+                            <button id="btn-process-bulk" onclick="processBulk()" disabled class="mt-8 w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all bg-slate-700 text-slate-400 cursor-not-allowed opacity-50">
+                                Analyze Reviews
+                            </button>
+                        </div>
+                        <div id="bulk-result" class="hidden animate-fade-in">
+                        </div>
+                    </div>
+
+                    <div id="compare-view" class="view-pane hidden p-8 h-full">
+                        <div id="compare-input-ui" class="grid md:grid-cols-2 gap-8 h-full">
+                            <div>
+                                <label class="text-indigo-400 font-bold mb-2 block">Your Product Reviews</label>
+                                <textarea id="comp-text-a" class="w-full h-64 bg-slate-800 text-white p-4 rounded-xl border border-slate-700 focus:border-indigo-500 outline-none" placeholder="Paste reviews for Product A..."></textarea>
+                            </div>
+                            <div>
+                                <label class="text-purple-400 font-bold mb-2 block">Competitor Product Reviews</label>
+                                <textarea id="comp-text-b" class="w-full h-64 bg-slate-800 text-white p-4 rounded-xl border border-slate-700 focus:border-purple-500 outline-none" placeholder="Paste reviews for Product B..."></textarea>
+                            </div>
+                            <div class="col-span-2 text-center">
+                                <button onclick="analyzeCompare()" id="btn-analyze-compare" class="px-10 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-transform">
+                                    Run Comparison
+                                </button>
+                            </div>
+                        </div>
+                        <div id="compare-result" class="hidden animate-fade-in">
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <section id="pricing-section" class="section-view hidden py-20">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-5xl font-bold text-white mb-6">Unlock Intelligence</h2>
+                    <p class="text-slate-400 text-lg">Choose the plan that fits your business needs.</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <div class="bg-slate-800 p-8 rounded-2xl border border-slate-700 flex flex-col">
+                        <h3 class="text-xl font-bold text-white mb-2">Free</h3>
+                        <div class="text-4xl font-bold text-white mb-6">Free</div>
+                        <ul class="space-y-4 mb-8 flex-grow text-slate-300">
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> Unlimited Single Analysis</li>
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> Basic Sentiment Analysis</li>
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> Manual Input Only</li>
+                        </ul>
+                        <button onclick="openPlanModal('Free')" id="btn-plan-free" class="w-full py-3 rounded-xl font-bold border border-slate-600 text-white hover:bg-slate-700 transition-all">Current Plan</button>
+                    </div>
+                    <div class="bg-slate-800 p-8 rounded-2xl border border-indigo-500 flex flex-col relative transform scale-105 shadow-2xl">
+                        <div class="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-500 text-white px-4 py-1 rounded-full text-sm font-bold">Recommended</div>
+                        <h3 class="text-xl font-bold text-white mb-2">Pro</h3>
+                        <div class="text-4xl font-bold text-white mb-6">$2<span class="text-sm text-slate-400 font-normal">/mo</span></div>
+                        <ul class="space-y-4 mb-8 flex-grow text-slate-300">
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> Unlimited Analysis</li>
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> Bulk CSV Upload</li>
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> Competitor Comparison</li>
+                            <li class="flex items-center"><i data-lucide="check" class="w-5 h-5 text-emerald-400 mr-3"></i> PDF Report Export</li>
+                        </ul>
+                        <button onclick="openPlanModal('Pro')" id="btn-plan-pro" class="w-full py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg transition-all">Get Started</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="about-section" class="section-view hidden py-20">
+            <div class="max-w-7xl mx-auto px-4 text-center">
+                <h2 class="text-4xl font-bold text-white mb-6">Our Mission</h2>
+                <p class="text-xl text-slate-300 max-w-3xl mx-auto">We are on a mission to democratize product intelligence. By leveraging advanced AI, we help businesses understand the voice of their customers.</p>
+            </div>
+        </section>
+
+        <section id="contact-section" class="section-view hidden py-20">
+            <div class="max-w-xl mx-auto px-4">
+                <h2 class="text-4xl font-bold text-white mb-6 text-center">Get in touch</h2>
+                <form class="space-y-6 bg-slate-800 p-8 rounded-2xl border border-slate-700" onsubmit="event.preventDefault(); showContactModal();">
+                    <input required type="text" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white" placeholder="Name">
+                    <input required type="email" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white" placeholder="Email">
+                    <textarea required rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white" placeholder="Message"></textarea>
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl shadow-lg">Send Message</button>
+                </form>
+            </div>
+        </section>
+
+        <section id="history-section" class="section-view hidden py-20 min-h-screen">
+            <div class="max-w-5xl mx-auto px-4">
+                <div class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Analysis History</h2>
+                    <p class="text-slate-400">View your past saved reviews and reports.</p>
+                </div>
+
+                <div class="bg-slate-800/50 rounded-2xl border border-slate-700 overflow-hidden min-h-[300px]">
+                    <div id="history-list-container" class="divide-y divide-slate-700">
+                    </div>
+                </div>
+                
+                <div class="mt-8 text-center">
+                    <button onclick="clearHistory()" class="text-rose-400 hover:text-rose-300 text-sm underline">Clear All History</button>
+                </div>
+            </div>
+        </section>
+
+        <div id="history-modal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 animate-fade-in">
+            <div class="bg-slate-900 rounded-2xl border border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl relative">
+                <div class="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900 rounded-t-2xl">
+                    <div>
+                        <span id="modal-type-badge" class="text-xs font-bold px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">TYPE</span>
+                        <h3 id="modal-date" class="text-slate-500 text-xs mt-1">Date</h3>
+                    </div>
+                    <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg hover:bg-slate-700 transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                
+                <div id="modal-content-body" class="p-8 overflow-y-auto custom-scrollbar color- bg-slate-900">
+                </div>
+
+                <div class="p-4 border-t border-slate-800 flex justify-end gap-3 bg-slate-900 rounded-b-2xl">
+                    <button onclick="closeHistoryModal()" class="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800">Close</button>
+                    <button onclick="exportFromModal()" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-bold shadow-lg">Export JSON</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+    
+    <script>
+        let state = {
+            page: 'home',
+            plan: 'Free',
+            usage: 0,
+            mode: 'single',
+            csvData: null
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            startCarousel();
+            updatePlanUI();
+        });
+
+        function navigate(pageId) {
+            state.page = pageId;
+            
+            document.querySelectorAll('.section-view').forEach(el => el.classList.add('hidden'));
+            
+            const target = document.getElementById(pageId + '-section');
+            if (target) target.classList.remove('hidden');
+            
+            if (pageId === 'history') {
+                renderHistoryPage();
+            }
+            
+            window.scrollTo(0, 0);
+            document.getElementById('mobile-menu').classList.add('hidden');
+            
+            updatePlanUI();
+        }
+
+        function saveToHistory(type, summary, data) {
+            try {
+                let history = JSON.parse(localStorage.getItem('rs_history') || '[]');
+                
+                let title = summary;
+                if (title.length > 60) title = title.substring(0, 60) + "...";
+                
+                const newItem = {
+                    id: Date.now(),
+                    date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                    type: type,
+                    title: title,
+                    fullData: data
+                };
+
+                history.unshift(newItem);
+                if(history.length > 20) history.pop();
+                
+                localStorage.setItem('rs_history', JSON.stringify(history));
+            } catch (e) {
+                console.error("Save History Failed:", e);
+            }
+        }
+
+        function renderHistoryPage() {
+            const container = document.getElementById('history-list-container');
+            const history = JSON.parse(localStorage.getItem('rs_history') || '[]');
+            
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-20 text-slate-500">
+                        <i data-lucide="history" class="w-16 h-16 mb-4 opacity-50"></i>
+                        <p class="text-lg">No analysis history found.</p>
+                        <button onclick="navigate('demo')" class="mt-4 text-indigo-400 hover:text-white underline">Start Analyzing</button>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            container.innerHTML = history.map(item => `
+                <div class="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:bg-slate-800 transition-colors group">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600">${item.type}</span>
+                            <span class="text-xs text-slate-500">${item.date}</span>
+                        </div>
+                        <h4 class="text-white font-medium text-lg group-hover:text-indigo-300 transition-colors">${item.title}</h4>
+                    </div>
+                    
+                    <button onclick="viewHistoryItem(${item.id})" class="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-slate-900 border border-slate-700 text-slate-300 font-medium rounded-xl hover:bg-indigo-600 hover:text-white hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-300">
+                        View Report <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+            
+            lucide.createIcons();
+        }
+
+        let currentModalData = null;
+
+        function viewHistoryItem(id) {
+            const history = JSON.parse(localStorage.getItem('rs_history') || '[]');
+            const item = history.find(i => i.id === id);
+            if (!item) return;
+
+            currentModalData = item.fullData;
+
+            document.getElementById('modal-type-badge').innerText = item.type;
+            document.getElementById('modal-date').innerText = item.date;
+
+            const contentBody = document.getElementById('modal-content-body');
+            contentBody.innerHTML = ''; // Clear previous
+
+            const tempDiv = document.createElement('div');
+            
+            if (item.type === 'Single') {
+                renderSingleResultToModal(item.fullData, tempDiv);
+            } else if (item.type === 'Bulk') {
+                renderBulkResultToModal(item.fullData, tempDiv);
+            } else if (item.type === 'Compare') {
+                renderCompareResultToModal(item.fullData, tempDiv);
+            }
+
+            contentBody.innerHTML = tempDiv.innerHTML;
+            
+            document.getElementById('history-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('history-modal').classList.add('hidden');
+        }
+
+        function clearHistory() {
+            if(confirm("Are you sure you want to delete all history?")) {
+                localStorage.removeItem('rs_history');
+                renderHistoryPage();
+                showNotification("History Cleared", "All saved data has been removed.", "success");
+            }
+        }
+
+        function exportFromModal() {
+            if(!currentModalData) return;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentModalData, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "review_scope_export.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function cleanJSON(text) {
+            if (!text) return "{}";
+            let cleaned = text.trim();
+            if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replace(/^```(json)?/i, "").replace(/```$/, "");
+            }
+            return cleaned.trim();
+        }
+
+
+        function renderSingleResultToModal(res, container) {
+            const sentColor = res.sentiment === 'Positive' ? 'text-emerald-400' : (res.sentiment === 'Negative' ? 'text-rose-400' : 'text-amber-400');
+            let stars = '';
+            for(let i=0; i<5; i++) stars += `<i data-lucide="star" class="w-5 h-5 ${i < res.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-600'}"></i>`;
+
+            container.innerHTML = `
+                <div class="flex justify-between items-center border-b border-slate-700 pb-4 mb-4">
+                    <div><span class="text-xs uppercase text-slate-500 font-bold">Sentiment</span><h3 class="text-3xl font-bold ${sentColor}">${res.sentiment}</h3></div>
+                    <div class="text-right"><span class="text-xs uppercase text-slate-500 font-bold">Rating</span><div class="flex">${stars}</div></div>
+                </div>
+                <div class="mb-4"><h4 class="font-bold text-white mb-2">Summary</h4><p class="text-slate-300 italic">"${res.summary}"</p></div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div><h4 class="font-bold text-emerald-400 mb-2">Pros</h4><ul class="list-disc list-inside text-slate-300">${res.pros.map(p=>`<li>${p}</li>`).join('')}</ul></div>
+                    <div><h4 class="font-bold text-rose-400 mb-2">Cons</h4><ul class="list-disc list-inside text-slate-300">${res.cons.map(c=>`<li>${c}</li>`).join('')}</ul></div>
+                </div>
+            `;
+        }
+
+        function renderBulkResultToModal(res, container) {
+            container.innerHTML = `
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                    <div class="bg-slate-800 p-3 rounded text-center"><div class="text-slate-500 text-xs">Total</div><div class="text-xl font-bold text-white">${res.total_reviews}</div></div>
+                    <div class="bg-slate-800 p-3 rounded text-center"><div class="text-slate-500 text-xs">Positive</div><div class="text-xl font-bold text-emerald-400">${res.positive_percent}%</div></div>
+                    <div class="bg-slate-800 p-3 rounded text-center"><div class="text-slate-500 text-xs">Negative</div><div class="text-xl font-bold text-rose-400">${res.negative_percent}%</div></div>
+                </div>
+                <div class="mb-4"><h4 class="font-bold text-white mb-2">Overall Analysis</h4><p class="text-slate-300">${res.overall_sentiment}</p></div>
+            `;
+        }
+
+        function renderCompareResultToModal(res, container) {
+            container.innerHTML = `
+                <div class="text-center mb-6 p-4 bg-slate-800 rounded-xl">
+                    <span class="text-slate-500 text-xs uppercase font-bold">Winner</span>
+                    <h2 class="text-3xl font-bold text-indigo-400">${res.winner}</h2>
+                    <p class="text-slate-300 mt-2 text-sm">${res.summary}</p>
+                </div>
+                <div class="space-y-3">
+                    ${res.comparison_points.map(pt => `
+                        <div class="flex flex-col border-b border-slate-800 pb-2">
+                            <div class="flex justify-between font-bold text-white"><span>${pt.feature}</span> <span class="text-indigo-400">${pt.winner} Wins</span></div>
+                            <div class="text-sm text-slate-400">${pt.details}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function analyzeSingle() {
+            const text = document.getElementById('single-input').value;
+            if(!text) { showNotification("Error", "Please enter text", "error"); return; }
+            
+            const btn = document.getElementById('btn-analyze-single');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "Analyzing...";
+            btn.disabled = true;
+
+            try {
+                const prompt = `Analyze this product review. Return JSON ONLY: { "sentiment": "Positive"|"Negative"|"Neutral", "rating": 1-5, "pros": [string], "cons": [string], "summary": "string" }. Review: ${text}`;
+                
+                console.log("Sending prompt to AI...");
+                
+                const res = await callGemini(prompt);
+                console.log("AI Response Raw:", res);
+
+                const json = JSON.parse(cleanJSON(res));
+                
+                saveToHistory('Single', json.summary, json);
+
+                renderSingleResult(json);
+                showNotification("Success", "Analysis Complete", "success");
+
+            } catch(e) {
+                console.error(e);
+                showNotification("Error", "Analysis Failed. Check console.", "error");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        }
+
+        function setMode(mode) {
+            state.mode = mode;
+            
+            ['single', 'bulk', 'compare'].forEach(m => {
+                const btn = document.getElementById(`btn-mode-${m}`);
+                if(btn) {
+                    if (m === mode) {
+                        btn.className = "flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-indigo-600 text-white shadow-lg transition-all";
+                    } else {
+                        btn.className = "flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-slate-800 text-slate-400 hover:bg-slate-700 transition-all";
+                    }
+                }
+            });
+
+            function toggleChat() {
+                const win = document.getElementById('chat-window');
+                const fab = document.getElementById('chat-fab');
+                
+                if (win.classList.contains('scale-0')) {
+                    win.classList.remove('scale-0');
+                    if(!state.lastAnalysisData) {
+                        addChatMessage("system", "Please run an analysis (URL, CSV, or Single) first so I have data to discuss!");
+                    }
+                } else {
+                    win.classList.add('scale-0');
+                }
+            }
+
+            function addChatMessage(sender, text) {
+                const container = document.getElementById('chat-messages');
+                const isUser = sender === 'user';
+                
+                const div = document.createElement('div');
+                div.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+                
+                div.innerHTML = `
+                    <div class="${isUser ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700'} p-3 rounded-2xl text-sm max-w-[85%] shadow-md animate-fade-in">
+                        ${text}
+                    </div>
+                `;
+                
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+            }
+
+            async function sendChatMessage() {
+                const input = document.getElementById('chat-input');
+                const msg = input.value.trim();
+                if (!msg) return;
+
+                addChatMessage('user', msg);
+                input.value = '';
+
+                if (!state.lastAnalysisData) {
+                    setTimeout(() => addChatMessage('system', "I don't have any analysis data yet. Please analyze some reviews first!"), 500);
+                    return;
+                }
+
+                const loadingId = 'loading-' + Date.now();
+                const container = document.getElementById('chat-messages');
+                const loadDiv = document.createElement('div');
+                loadDiv.id = loadingId;
+                loadDiv.className = "flex justify-start";
+                loadDiv.innerHTML = `<div class="bg-slate-800 p-3 rounded-2xl rounded-tl-none border border-slate-700"><i data-lucide="more-horizontal" class="w-4 h-4 animate-pulse text-slate-400"></i></div>`;
+                container.appendChild(loadDiv);
+                lucide.createIcons();
+                container.scrollTop = container.scrollHeight;
+
+                try {
+                    const prompt = `Context Data: ${state.lastAnalysisData}. 
+                    User Question: "${msg}". 
+                    Answer the user briefly and professionally based strictly on the context data provided.`;
+                    
+                    const answer = await callGemini(prompt);
+                    
+                    document.getElementById(loadingId).remove();
+                    addChatMessage('system', answer);
+                    
+                } catch (e) {
+                    document.getElementById(loadingId).remove();
+                    addChatMessage('system', "Sorry, I encountered an error answering that.");
+                }
+            }
+
+            const isLocked = state.plan === 'Free' && mode !== 'single';
+            document.getElementById('locked-view').classList.add('hidden');
+            document.querySelectorAll('.view-pane').forEach(el => el.classList.add('hidden'));
+
+            if (isLocked) {
+                document.getElementById('locked-view').classList.remove('hidden');
+            } else {
+                document.getElementById(`${mode}-view`).classList.remove('hidden');
+            }
+        }
+
+        function updatePlanUI() {
+            const badge = document.getElementById('active-plan-badge');
+            const nameDisplay = document.getElementById('plan-name-display');
+            const appPlanName = document.getElementById('app-plan-name');
+            const limitIndicator = document.getElementById('limit-indicator');
+            
+            const pricingDesktop = document.getElementById('nav-pricing-desktop');
+            const pricingMobile = document.getElementById('nav-pricing-mobile');
+
+            if (state.plan === 'Free') {
+                badge.classList.remove('hidden');
+                nameDisplay.innerText = 'Free';
+                appPlanName.innerText = 'Free';
+                limitIndicator.classList.remove('hidden');
+                document.getElementById('credits-text').innerText = "Unlimited Single Reviews";
+                
+                document.getElementById('btn-plan-free').innerText = "Current Plan";
+                document.getElementById('btn-plan-free').classList.add('bg-emerald-900', 'text-emerald-400', 'border-emerald-500');
+                document.getElementById('btn-plan-pro').innerText = "Upgrade";
+
+                if(pricingDesktop) pricingDesktop.classList.remove('hidden');
+                if(pricingMobile) pricingMobile.classList.remove('hidden');
+
+            } else {
+                badge.classList.remove('hidden');
+                nameDisplay.innerText = 'Pro';
+                appPlanName.innerText = 'Pro';
+                
+                limitIndicator.classList.add('hidden'); 
+                
+                document.getElementById('btn-plan-free').innerText = "Downgrade";
+                document.getElementById('btn-plan-free').classList.remove('bg-emerald-900', 'text-emerald-400');
+                document.getElementById('btn-plan-pro').innerText = "Current Plan";
+
+                if(pricingDesktop) pricingDesktop.classList.add('hidden');
+                if(pricingMobile) pricingMobile.classList.add('hidden');
+
+                if (state.page === 'pricing') {
+                    navigate('home');
+                }
+            }
+            
+            if(state.page === 'demo') setMode(state.mode);
+        }
+
+        function openPlanModal(plan) {
+            if (plan === state.plan) return;
+            document.getElementById('modal-plan-name').innerText = plan;
+            document.getElementById('plan-modal').classList.remove('hidden');
+            state.tempPlan = plan;
+
+            if (plan === state.plan) {
+                showNotification("Already Active", `You are already on the ${plan} plan.`, "success");
+                return;
+            }
+
+            const modal = document.getElementById('plan-modal');
+            const modalTitle = document.getElementById('modal-plan-name');
+            
+            if (modal && modalTitle) {
+                modalTitle.innerText = plan;
+                modal.classList.remove('hidden');
+                state.tempPlan = plan;
+            } else {
+                console.error("Modal elements not found in HTML");
+            }
+        }
+
+
+        function closeModal() {
+            document.getElementById('plan-modal').classList.add('hidden');
+            const modal = document.getElementById('plan-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function confirmPlan() {
+            if (!state.tempPlan) return;
+            state.plan = state.tempPlan;
+            state.usage = 0;
+            
+            closeModal();
+            
+            updatePlanUI();
+            
+            if (state.page === 'demo') {
+                setMode(state.mode); 
+            }
+
+            showNotification("Success", "Pro features unlocked successfully!", "success");
+        }
+
+        function showNotification(title, msg, type = 'success') {
+            const container = document.getElementById('notification-container');
+            if (!container) return;
+
+            const contentDiv = container.firstElementChild;
+            if (!contentDiv) return;
+
+            const icon = contentDiv.querySelector('i') || contentDiv.querySelector('svg');
+
+            contentDiv.className = "px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 text-white transition-colors " + (type === 'error' ? 'bg-rose-600' : 'bg-emerald-500');
+            
+            if (icon) {
+                icon.setAttribute('data-lucide', type === 'error' ? 'alert-circle' : 'check-circle');
+            }
+
+            const titleEl = document.getElementById('notif-title');
+            const msgEl = document.getElementById('notif-msg');
+            if(titleEl) titleEl.innerText = title;
+            if(msgEl) msgEl.innerText = msg;
+            
+            container.classList.remove('translate-x-full', 'opacity-0');
+            if(typeof lucide !== 'undefined') lucide.createIcons();
+
+            setTimeout(() => {
+                container.classList.add('translate-x-full', 'opacity-0');
+            }, 4000);
+        }
+
+        function showContactModal() {
+            showNotification("Message Sent!", "We will contact you shortly.", "success");
+        }
+
+        function handleFileUpload(input) {
+            const file = input.files[0];
+            const btn = document.getElementById('btn-process-bulk');
+            const nameDisplay = document.getElementById('file-name-display');
+
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const rows = text.split('\n').filter(row => row.trim() !== '');
+                const limit = 50; // Pro limit
+                state.csvData = rows.slice(0, limit);
+                
+                nameDisplay.innerText = `File Selected: ${file.name} (${state.csvData.length} reviews)`;
+                nameDisplay.classList.remove('hidden');
+
+                btn.disabled = false;
+                btn.classList.remove('bg-slate-700', 'text-slate-400', 'cursor-not-allowed', 'opacity-50');
+                btn.classList.add('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'hover:shadow-indigo-500/25', 'hover:scale-105');
+            };
+            reader.readAsText(file);
+        }
+
+        function downloadPDF(btn) {
+            if (state.plan !== 'Pro') {
+                openPlanModal('Pro');
+                return;
+            }
+
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Generating...`;
+            btn.disabled = true;
+            if(typeof lucide !== 'undefined') lucide.createIcons();
+
+            let elementId = '';
+            let reportTitle = '';
+            if (state.mode === 'single') {
+                elementId = 'single-result';
+                reportTitle = 'Single Review Analysis';
+            } else if (state.mode === 'bulk') {
+                elementId = 'bulk-result';
+                reportTitle = 'Bulk Sentiment Report';
+            } else if (state.mode === 'compare') {
+                elementId = 'compare-result';
+                reportTitle = 'Competitor Comparison';
+            }
+
+            const sourceElement = document.getElementById(elementId);
+            if (!sourceElement) {
+                alert("No content to download");
+                btn.innerHTML = originalText; btn.disabled = false; return;
+            }
+
+            const pdfContainer = document.createElement('div');
+            pdfContainer.id = 'pdf-generator-container';
+            const date = new Date().toLocaleDateString();
+
+            pdfContainer.innerHTML = `
+                <div class="pdf-export-mode">
+                    <!-- Header -->
+                    <div class="pdf-watermark">
+                        <div style="display:flex; align-items:center; gap: 10px;">
+                            <div style="background: #4f46e5; width: 30px; height: 30px; border-radius: 6px; display:flex; align-items:center; justify-content:center;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                            </div>
+                            <span style="font-size: 20px; font-weight: bold; color: #000;">ReviewScope AI</span>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size: 18px; font-weight: bold; color: #333;">${reportTitle}</div>
+                            <div style="font-size: 12px; color: #666;">Date: ${date}</div>
+                        </div>
+                    </div>
+
+                    <!-- Content Body -->
+                    <div id="pdf-content-body">
+                        ${sourceElement.innerHTML}
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; color: #888; font-size: 10px;">
+                        Generated by Revu AI • Intelligent Analytics
+                    </div>
+                </div>
+            `;
+
+            const cleanContent = pdfContainer.innerHTML
+                .replace(/<button[\s\S]*?<\/button>/g, '') 
+                .replace(/no-print-btn/g, 'hidden');        
+            
+            pdfContainer.innerHTML = cleanContent;
+
+            pdfContainer.style.position = 'absolute';
+            pdfContainer.style.left = '-9999px';
+            pdfContainer.style.top = '0';
+            pdfContainer.style.width = '750px';
+            document.body.appendChild(pdfContainer);
+
+            const opt = {
+                margin:       [0.3, 0.3, 0.3, 0.3],
+                filename:     `ReviewScope_${state.mode}_Report.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
+                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(pdfContainer.querySelector('.pdf-export-mode')).save()
+                .then(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    document.body.removeChild(pdfContainer);
+                    if(typeof lucide !== 'undefined') lucide.createIcons();
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('Error generating PDF');
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    if(document.body.contains(pdfContainer)) document.body.removeChild(pdfContainer);
+                });
+        }
+
+        function getDownloadButton() {
+            return `
+                <div class="mt-8 no-print-btn">
+                    <button onclick="downloadPDF(this)" class="flex items-center gap-2 px-6 py-3 font-bold rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95 bg-indigo-600 text-white hover:bg-indigo-700">
+                        <i data-lucide="printer" class="w-5 h-5"></i> Download Report
+                        ${state.plan === 'Free' ? '<i data-lucide="lock" class="w-4 h-4 ml-1"></i>' : ''}
+                    </button>
+                </div>
+            `;
+        }
+
+        async function callGemini(prompt) {
+            console.log("Calling Backend API...");
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text(); 
+                    console.error("Server Error Raw:", errText);
+                    throw new Error("Server Error: " + response.status);
+                }
+
+                const data = await response.json();
+                
+                if(!data.candidates || data.candidates.length === 0) {
+                    throw new Error("AI returned empty response.");
+                }
+
+                return data.candidates[0].content.parts[0].text;
+
+            } catch (e) {
+                console.error("API Call Failed:", e);
+                alert("Analysis Error: " + e.message);
+                throw e;
+            }
+        }
+
+        function cleanJSON(text) {
+            if (!text) return "";
+            let cleaned = text.trim();
+            if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replace(/^```(json)?/, "").replace(/```$/, "");
+            }
+            return cleaned.trim();
+        }
+
+        async function analyzeSingle() {
+            const text = document.getElementById('single-input').value;
+            if(!text) { alert("Please enter some text to analyze."); return; }
+            
+            const btn = document.getElementById('btn-analyze-single');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Analyzing...`;
+            btn.disabled = true;
+            if(typeof lucide !== 'undefined') lucide.createIcons();
+
+            try {
+                const prompt = `Analyze this review. Return JSON ONLY: { "sentiment": "Positive"|"Negative"|"Neutral", "rating": 1-5, "pros": ["str"], "cons": ["str"], "summary": "str" }. Text: ${text}`;
+                
+                const res = await callGemini(prompt);
+                const json = JSON.parse(cleanJSON(res));
+                
+                if(typeof saveToHistory === 'function') {
+                    saveToHistory('Single', json.summary, json);
+                }
+                
+                state.lastAnalysisData = JSON.stringify(json);
+
+                renderSingleResult(json); 
+
+            } catch(e) {
+                console.error(e);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                if(typeof lucide !== 'undefined') lucide.createIcons();
+            }
+        }
+
+        function renderSingleResult(res) {
+            const container = document.getElementById('single-result');
+            const empty = document.getElementById('single-empty');
+            
+            empty.classList.add('hidden');
+            container.classList.remove('hidden');
+            
+            const sentColor = res.sentiment === 'Positive' ? 'text-emerald-400' : (res.sentiment === 'Negative' ? 'text-rose-400' : 'text-amber-400');
+            let stars = '';
+            for(let i=0; i<5; i++) stars += `<i data-lucide="star" class="w-5 h-5 ${i < res.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-600'}"></i>`;
+
+            container.innerHTML = `
+                <div class="flex justify-between items-center border-b border-slate-700 pb-4">
+                    <div><span class="text-xs uppercase text-slate-400 font-bold">Sentiment</span><h3 class="text-3xl font-bold ${sentColor}">${res.sentiment}</h3></div>
+                    <div class="text-right"><span class="text-xs uppercase text-slate-400 font-bold">Rating</span><div class="flex">${stars}</div></div>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-bold text-white mb-2 flex items-center gap-2"><i data-lucide="check-circle" class="w-4 h-4 text-emerald-500"></i> Pros</h4>
+                    <div class="flex flex-wrap gap-2">${res.pros.map(p => `<span class="bg-emerald-500/10 text-emerald-300 px-3 py-1 rounded-full text-sm border border-emerald-500/20">${p}</span>`).join('')}</div>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-bold text-white mb-2 flex items-center gap-2"><i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500"></i> Cons</h4>
+                    <div class="flex flex-wrap gap-2">${res.cons.map(c => `<span class="bg-rose-500/10 text-rose-300 px-3 py-1 rounded-full text-sm border border-rose-500/20">${c}</span>`).join('')}</div>
+                </div>
+                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 mt-6">
+                    <h4 class="text-xs text-indigo-400 font-bold uppercase mb-2">Summary</h4>
+                    <p class="text-slate-300 text-sm italic">"${res.summary}"</p>
+                </div>
+                
+                ${getDownloadButton()}
+                <div class="mt-4 border-t border-slate-700 pt-4 no-print-btn">
+                    <button onclick="resetSingle()" class="w-full py-3 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-800 transition-all flex justify-center items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Analyze Another Review
+                    </button>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        async function processBulk() {
+            if(!state.csvData || state.csvData.length === 0) {
+                alert("No data found! Please upload a valid CSV file first.");
+                return;
+            }
+
+            const btn = document.getElementById('btn-process-bulk');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = `Analyzing...`;
+            btn.disabled = true;
+            if(typeof lucide !== 'undefined') lucide.createIcons();
+
+            try {
+                const reviewsToSend = state.csvData.slice(0, 50); 
+                const prompt = `Analyze these customer reviews. Return strictly valid JSON ONLY with this structure: 
+                { 
+                    "overall_sentiment": "string summary", 
+                    "total_reviews": number, 
+                    "positive_percent": number (0-100), 
+                    "negative_percent": number (0-100), 
+                    "neutral_percent": number (0-100), 
+                    "key_themes": ["theme1", "theme2"], 
+                    "keywords": [{"text": "word", "value": number(10-100)}],
+                    "trend_data": [number, number, number, number, number, number, number, number, number, number] (array of 10 integers between -10 and 10 representing sentiment flow)
+                }. 
+                Reviews Data: ${JSON.stringify(reviewsToSend)}`;
+                
+                const res = await callGemini(prompt);
+                
+                const cleanedJson = cleanJSON(res);
+                console.log("Bulk JSON:", cleanedJson);
+                const json = JSON.parse(cleanedJson);
+                
+                state.lastAnalysisData = JSON.stringify(json);
+                if(typeof saveToHistory === 'function') {
+                    saveToHistory('Bulk', `Bulk Analysis (${json.total_reviews} reviews)`, json);
+                }
+
+                renderBulkResult(json);
+                
+                if(typeof showNotification === 'function') {
+                    showNotification("Success", "Bulk Analysis Complete", "success");
+                }
+
+            } catch(e) {
+                console.error("Bulk Error:", e);
+                alert("Analysis Failed: " + e.message + ". \nCheck console for details.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                if(typeof lucide !== 'undefined') lucide.createIcons();
+            }
+        }
+
+        function renderBulkResult(res) {
+            const ui = document.getElementById('bulk-upload-ui');
+            const result = document.getElementById('bulk-result');
+            
+            if(ui) ui.classList.add('hidden');
+            if(result) result.classList.remove('hidden');
+
+            const bars = res.trend_data ? res.trend_data.map(val => {
+                const h = Math.max(10, (Math.abs(val) + 1) * 8);
+                const c = val >= 0 ? 'bg-emerald-500' : 'bg-rose-500';
+                return `<div style="height: ${h}%; width: 8%;" class="rounded-t-sm ${c} opacity-80" title="Score: ${val}"></div>`;
+            }).join('') : '<div class="text-slate-500">No trend data</div>';
+
+            const words = res.keywords ? res.keywords.map(k => {
+                const size = Math.min(1.1, Math.max(0.75, k.value / 25)); 
+                
+                return `<span style="font-size: ${size}rem" class="px-3 py-1 bg-slate-800 border border-indigo-500/30 rounded-full text-indigo-300 inline-flex items-center m-1 whitespace-nowrap hover:bg-slate-700 transition-colors cursor-default shadow-sm">
+                    ${k.text}
+                </span>`;
+            }).join('') : '<span class="text-slate-500 text-sm">No keywords detected.</span>';
+
+            result.innerHTML = `
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                    <h3 class="text-2xl font-bold text-white">Bulk Analysis Report</h3>
+                    <span class="px-3 py-1 rounded bg-indigo-900/50 text-indigo-300 text-xs border border-indigo-500/30">Processed ${res.total_reviews} Reviews</span>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-3 gap-4 md:gap-6 mb-8">
+                    <div class="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Total</div>
+                        <div class="text-2xl md:text-3xl font-bold text-white">${res.total_reviews}</div>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Positive</div>
+                        <div class="text-2xl md:text-3xl font-bold text-emerald-400">${res.positive_percent}%</div>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
+                        <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">Negative</div>
+                        <div class="text-2xl md:text-3xl font-bold text-rose-400">${res.negative_percent}%</div>
+                    </div>
+                </div>
+
+                <!-- Sentiment Graph -->
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
+                    <h4 class="font-bold text-white mb-4 text-sm uppercase text-slate-400">Sentiment Trend (Last 10 Batches)</h4>
+                    <div class="h-32 w-full flex items-end justify-between gap-1 border-b border-slate-600 pb-1 px-2">
+                        ${bars}
+                    </div>
+                </div>
+
+                <!-- Summary & Keywords -->
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+                        <h4 class="font-bold text-white mb-3 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-indigo-400"></i> AI Summary</h4>
+                        <p class="text-slate-300 leading-relaxed text-sm">"${res.overall_sentiment}"</p>
+                        
+                        <h4 class="font-bold text-white mt-6 mb-3 flex items-center gap-2"><i data-lucide="layers" class="w-4 h-4 text-amber-400"></i> Key Themes</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${res.key_themes ? res.key_themes.map(t => `<span class="text-xs text-slate-300 bg-slate-700 px-2 py-1 rounded border border-slate-600">${t}</span>`).join('') : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700 flex flex-col">
+                        <h4 class="font-bold text-white mb-3 flex items-center gap-2">
+                            <i data-lucide="cloud" class="w-4 h-4 text-sky-400"></i> Keyword Cloud
+                        </h4>
+                        <!-- 'content-start' ensure karta hai tags upar se start hon -->
+                        <div class="flex flex-wrap content-start gap-1">
+                            ${words}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="mt-8 flex flex-col sm:flex-row gap-4 no-print-btn">
+                    <button onclick="downloadPDF(this)" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg flex justify-center items-center gap-2 transition-all">
+                        <i data-lucide="printer" class="w-4 h-4"></i> Download Report
+                    </button>
+                    <button onclick="resetBulk()" class="flex-1 py-3 border border-slate-600 text-slate-300 hover:bg-slate-800 rounded-xl font-medium flex justify-center items-center gap-2 transition-all">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i> Upload New File
+                    </button>
+                </div>
+            `;
+            
+            if(typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function resetSingle() {
+            document.getElementById('single-input').value = '';
+            document.getElementById('single-result').classList.add('hidden');
+            document.getElementById('single-empty').classList.remove('hidden');
+        }
+
+        function resetBulk() {
+            state.csvData = null;
+            const btn = document.getElementById('btn-process-bulk');
+            const input = document.getElementById('csv-file-input');
+            const nameDisplay = document.getElementById('file-name-display');
+
+            document.getElementById('bulk-upload-ui').classList.remove('hidden');
+            document.getElementById('bulk-result').classList.add('hidden');
+            
+            input.value = ''; 
+            nameDisplay.classList.add('hidden');
+            nameDisplay.innerText = '';
+
+            btn.disabled = true;
+            btn.classList.add('bg-slate-700', 'text-slate-400', 'cursor-not-allowed', 'opacity-50');
+            btn.classList.remove('bg-gradient-to-r', 'from-indigo-600', 'to-purple-600', 'hover:shadow-indigo-500/25', 'hover:scale-105');
+        }
+
+        async function analyzeCompare() {
+            const a = document.getElementById('comp-text-a').value;
+            const b = document.getElementById('comp-text-b').value;
+            if(!a || !b) return;
+
+            const btn = document.getElementById('btn-analyze-compare');
+            btn.innerHTML = "Comparing...";
+            btn.disabled = true;
+
+            try {
+                const prompt = `Compare Product A: "${a}" and Product B: "${b}". Return JSON ONLY: 
+                { "winner": "Product A"|"Product B"|"Tie", "summary": "string", "comparison_points": [{"feature": "string", "winner": "A"|"B"|"Tie", "details": "string"}] }`;
+                const res = await callGemini(prompt);
+                const json = JSON.parse(cleanJSON(res));
+                renderCompareResult(json);
+            } catch(e) {}
+            finally {
+                btn.innerHTML = "Run Comparison";
+                btn.disabled = false;
+            }
+        }
+
+        function renderCompareResult(res) {
+            const ui = document.getElementById('compare-input-ui');
+            const result = document.getElementById('compare-result');
+            ui.classList.add('hidden');
+            result.classList.remove('hidden');
+
+            const points = res.comparison_points.map(pt => `
+                <div class="flex flex-col md:flex-row bg-slate-800/50 p-4 rounded-lg border border-slate-700 items-center mb-4">
+                    <div class="md:w-1/4 font-bold text-white">${pt.feature}</div>
+                    <div class="md:w-1/4 text-center my-2 md:my-0"><span class="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300">${pt.winner === 'A' ? 'Product A' : (pt.winner === 'B' ? 'Product B' : 'Tie')}</span></div>
+                    <div class="md:w-1/2 text-slate-400 text-sm">${pt.details}</div>
+                </div>
+            `).join('');
+
+            result.innerHTML = `
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="text-2xl font-bold text-white">Comparison Report</h3>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8 text-center">
+                    <span class="text-slate-400 uppercase tracking-widest text-xs font-bold">Overall Winner</span>
+                    <h2 class="text-4xl font-extrabold gradient-text mt-2">${res.winner}</h2>
+                    <p class="mt-4 text-slate-300 max-w-2xl mx-auto">${res.summary}</p>
+                </div>
+                <div>${points}</div>
+                ${getDownloadButton()}
+                <button onclick="resetCompare()" class="mt-4 text-sm text-slate-500 underline no-print-btn">New Comparison</button>
+            `;
+            lucide.createIcons();
+        }
+
+        function resetCompare() {
+            document.getElementById('comp-text-a').value = '';
+            document.getElementById('comp-text-b').value = '';
+            document.getElementById('compare-input-ui').classList.remove('hidden');
+            document.getElementById('compare-result').classList.add('hidden');
+        }
+
+        function startCarousel() {
+            const testimonials = [
+                { text: "This tool completely changed how we analyze feedback. It's fast and accurate.", author: "Sarah J., Product Manager" },
+                { text: "The competitor comparison feature is a goldmine for our strategy team.", author: "Mike T., Marketing Lead" },
+                { text: "Finally, an AI tool that understands context. Highly recommended!", author: "Elena R., CEO" }
+            ];
+            let idx = 0;
+            const textEl = document.getElementById('t-text');
+            const authEl = document.getElementById('t-author');
+            
+            setInterval(() => {
+                idx = (idx + 1) % testimonials.length;
+                textEl.style.opacity = 0;
+                setTimeout(() => {
+                    textEl.innerText = `"${testimonials[idx].text}"`;
+                    authEl.innerText = `— ${testimonials[idx].author}`;
+                    textEl.style.opacity = 1;
+                }, 200);
+            }, 4000);
+        }
+
+    </script>
+</body>
+</html>
